@@ -44,10 +44,6 @@ def calculate_bounds(lat, lon, distance_meters):
     lon_offset = distance_meters / (40008000 * (1 / 360)) * (1 / (111320 * 2))
     return [[lat - lat_offset, lon - lon_offset], [lat + lat_offset, lon + lon_offset]]
 
-def add_frame(img, rppa, frame_width=10):
-    frame_color = (int(255 * (1 - rppa)), int(rppa * 255), 0)
-    return ImageOps.expand(img, border=frame_width, fill=frame_color)
-
 # Preprocess data to prepare options for POI selection
 def prepare_poi_options(data):
     data['num_reference_routing_points'] = data["reference_routing_points"].apply(len)
@@ -90,9 +86,28 @@ reference_latlon = (float(row['ref_lat']), float(row['ref_lon']))
 provider_latlon = provider_latlon_(json.loads(row['provider_response']))
 
 # Display RPPA value
-st.text(f"RPPA: {rppa}")
+# Define RPPA color based on rppa value
+rppa_color = f"rgb({int(255 * (1 - rppa))}, {int(rppa * 255)}, 0)"
+
+# Display centered and styled RPPA text
+st.markdown(
+    f"""
+    <div style="
+        text-align: center;
+        background-color: {rppa_color};
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 24px;
+        font-weight: bold;">
+        RPPA: {rppa}
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # Create the map
+
 map_centroid = reference_latlon
 width, height = 800, 600 
 m = folium.Map(location=map_centroid, zoom_start=17, tiles='openstreetmap', width=width, height=height)
@@ -106,7 +121,7 @@ markers = [reference_latlon, provider_latlon]
 
 for rp in provider_routing_points:
     folium.Circle(location=rp, radius=0.7 * poi_characteristic_distance, color="red").add_to(m)
-    folium.CircleMarker(location=rp, radius=4, color="red", fill=True).add_to(m)
+    folium.CircleMarker(location=rp, radius=4, color="red", fill=False, fill_color = 'red', fill_opacity = 1).add_to(m)
     folium.PolyLine(locations=[rp, provider_latlon], color="red", weight=2, dashArray="5, 5").add_to(m)
     markers.append(rp)
 
@@ -116,19 +131,15 @@ if rppa > 0:
             folium.PolyLine(locations=[reference_routing_points[asign[0]], provider_routing_points[asign[1]]], color="green", weight=4).add_to(m)
 
 for rp in reference_routing_points:
-    folium.CircleMarker(location=rp, radius=4, color="black", fill=True).add_to(m)
+    folium.CircleMarker(location=rp, radius=4, color="black", fill=False, fill_color = 'black', fill_opacity = 1).add_to(m)
     folium.PolyLine(locations=[rp, reference_latlon], color="black", weight=2, dashArray="5, 5").add_to(m)
 
 bounds = calculate_bounds(map_centroid[0], map_centroid[1], 1.5 * max_distance(map_centroid, markers))
 m.fit_bounds(bounds)
 
-# Render Map as Image
-img_data = m._to_png(0.5)
-img = Image.open(io.BytesIO(img_data))
-img = add_frame(img, rppa)
-
-# Display in Streamlit
-st.image(img, caption=seleccion, use_container_width=True)
+# Render the map directly in Streamlit
+st_folium(m, width=800, height=600)
+# Display the legend
 
 for i in range(25):
     st.sidebar.markdown("""
